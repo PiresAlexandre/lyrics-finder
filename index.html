@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lyrics Finder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    screens: {
+                        'sm': '640px',
+                        'md': '768px',
+                        'lg': '1024px',
+                    },
+                },
+            },
+            corePlugins: {
+                preflight: true,
+                accessibility: true,
+                display: true,
+                flex: true,
+                grid: true,
+                spacing: true,
+                typography: true,
+                backgroundColor: true,
+                border: true,
+                borderRadius: true,
+                boxShadow: true,
+                textColor: true,
+            },
+        };
+    </script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+</head>
+<body class="bg-gray-100 flex flex-col items-center min-h-screen p-4">
+    <div id="app" class="w-full max-w-3xl bg-white rounded-lg shadow-lg p-6 md:p-8">
+        <h1 class="text-2xl font-bold text-center mb-4">Lyrics Finder</h1>
+        <input
+            type="file"
+            @change="uploadFile"
+            accept=".pdf,.docx"
+            class="mb-4 w-full p-2 border rounded text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-500 file:text-white hover:file:bg-blue-600"
+        >
+        <div v-if="error" class="text-red-500 mb-4">{{ error }}</div>
+        <div v-if="loading" class="text-gray-500 mb-4">Loading...</div>
+        <ul v-if="files.length" class="space-y-2">
+            <li v-for="file in files" :key="file.name" class="flex items-center justify-between p-2 border rounded">
+                <span>{{ file.name }}</span>
+                <a
+                    :href="`/uploads/${file.name}`"
+                    download
+                    class="text-blue-500 hover:text-blue-700"
+                >Download</a>
+            </li>
+        </ul>
+        <div v-else-if="!loading && !error" class="text-gray-500">No files uploaded yet.</div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    files: [],
+                    loading: false,
+                    error: '',
+                };
+            },
+            methods: {
+                async uploadFile(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+
+                    if (
+                        file.type !== 'application/pdf' &&
+                        file.type !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                    ) {
+                        this.error = 'Please upload a PDF or Word (.docx) file.';
+                        return;
+                    }
+
+                    this.loading = true;
+                    this.error = '';
+
+                    const formData = new FormData();
+                    formData.append('file', file);
+
+                    try {
+                        const response = await fetch('/upload', {
+                            method: 'POST',
+                            body: formData,
+                        });
+
+                        if (!response.ok) {
+                            throw new Error('Upload failed: ' + response.statusText);
+                        }
+
+                        await this.fetchFiles();
+                    } catch (error) {
+                        this.error = 'Error uploading file: ' + error.message;
+                    } finally {
+                        this.loading = false;
+                        event.target.value = ''; // Clear file input
+                    }
+                },
+                async fetchFiles() {
+                    this.loading = true;
+                    this.error = '';
+
+                    try {
+                        const response = await fetch('/files');
+                        if (!response.ok) {
+                            throw new Error('Failed to fetch files: ' + response.statusText);
+                        }
+                        this.files = await response.json();
+                    } catch (error) {
+                        this.error = 'Error fetching files: ' + error.message;
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+            },
+            mounted() {
+                this.fetchFiles();
+            },
+        }).mount('#app');
+    </script>
+</body>
+</html>
