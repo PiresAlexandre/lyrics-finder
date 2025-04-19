@@ -24,8 +24,8 @@ try {
 } catch (err) {
     console.error(`Cannot access uploads directory: ${err.message}`);
     // Log parent directory (/app) contents for debugging
+    const parentDir = '/app';
     try {
-        const parentDir = '/app';
         const parentContents = fs.readdirSync(parentDir);
         console.log(`Contents of ${parentDir}: ${parentContents}`);
     } catch (parentErr) {
