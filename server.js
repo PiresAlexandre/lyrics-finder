@@ -63,13 +63,21 @@ app.post('/upload', upload.single('file'), (req, res) => {
 app.get('/files', (req, res) => {
     fs.readdir(uploadDir, (err, files) => {
         if (err) {
-            return res.status(500).send('Error reading uploads directory.');
+            return res.status(500).send('Error reading uploads directory: ' + err.message);
         }
         const fileList = files.map(file => ({ name: file }));
         res.json(fileList);
     });
 });
 
-app.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}`);
+// Health check endpoint for Render
+app.get('/health', (req, res) => {
+    res.status(200).send('Server is healthy');
+});
+
+// Start server with error handling
+app.listen(port, '0.0.0.0', () => {
+    console.log(`Server running on port ${port}`);
+}).on('error', (err) => {
+    console.error('Server failed to start:', err.message);
 });
