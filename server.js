@@ -23,6 +23,14 @@ try {
     diskAccessible = true;
 } catch (err) {
     console.error(`Cannot access uploads directory: ${err.message}`);
+    // Log parent directory (/app) contents for debugging
+    try {
+        const parentDir = '/app';
+        const parentContents = fs.readdirSync(parentDir);
+        console.log(`Contents of ${parentDir}: ${parentContents}`);
+    } catch (parentErr) {
+        console.error(`Cannot read ${parentDir}: ${parentErr.message}`);
+    }
     if (err.code === 'ENOENT' && !process.env.RENDER) {
         try {
             fs.mkdirSync(uploadDir, { recursive: true });
@@ -125,6 +133,24 @@ app.get('/debug', (req, res) => {
     } catch (err) {
         console.error(`Debug: Cannot access uploads: ${err.message}`);
         res.status(500).send(`Cannot access uploads: ${err.message}`);
+    }
+});
+
+// Debug endpoint to list /app contents
+app.get('/debug-root', (req, res) => {
+    try {
+        const rootDir = '/app';
+        fs.readdir(rootDir, (err, files) => {
+            if (err) {
+                console.error(`Error reading ${rootDir}: ${err.message}`);
+                return res.status(500).json({ error: `Error reading ${rootDir}`, details: err.message });
+            }
+            console.log(`Files in ${rootDir}: ${files}`);
+            res.json({ files });
+        });
+    } catch (err) {
+        console.error(`Synchronous error in /debug-root: ${err.message}`);
+        res.status(500).json({ error: 'Error accessing /app', details: err.message });
     }
 });
 
