@@ -7,10 +7,10 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // Define uploads directory (Render uses /app/uploads for persistent disk)
-const uploadDir = process.env.RENDER ? '/app/uploads' : path.join(__dirname, 'uploads');
+const uploadDir = process.env.RENDER ? '/app/uploads' : path.join(__dirname, 'Uploads');
 
-// Ensure uploads directory exists
-if (!fs.existsSync(uploadDir)) {
+// Ensure uploads directory exists locally (not needed on Render)
+if (!process.env.RENDER && !fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
 
