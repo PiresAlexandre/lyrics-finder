@@ -9,7 +9,7 @@ const port = process.env.PORT || 3000;
 // Define uploads directory (Render uses /app/uploads for persistent disk)
 const uploadDir = process.env.RENDER ? '/app/uploads' : path.join(__dirname, 'Uploads');
 
-// Log environment for debugging
+// Log environment and check disk access
 console.log('Environment:', {
     NODE_ENV: process.env.NODE_ENV,
     PORT: process.env.PORT,
@@ -17,15 +17,19 @@ console.log('Environment:', {
     uploadDir
 });
 
-// Ensure uploads directory exists locally (not needed on Render)
-if (!process.env.RENDER) {
-    try {
-        if (!fs.existsSync(uploadDir)) {
+// Check if uploads directory is accessible
+try {
+    fs.accessSync(uploadDir, fs.constants.R_OK | fs.constants.W_OK);
+    console.log(`Uploads directory accessible: ${uploadDir}`);
+} catch (err) {
+    console.error(`Cannot access uploads directory: ${err.message}`);
+    if (err.code === 'ENOENT' && !process.env.RENDER) {
+        try {
             fs.mkdirSync(uploadDir, { recursive: true });
             console.log(`Created local uploads directory: ${uploadDir}`);
+        } catch (mkdirErr) {
+            console.error(`Failed to create local uploads directory: ${mkdirErr.message}`);
         }
-    } catch (err) {
-        console.error(`Failed to create local uploads directory: ${err.message}`);
     }
 }
 
@@ -87,26 +91,32 @@ app.post('/upload', upload.single('file'), (req, res) => {
 // List files endpoint
 app.get('/files', (req, res) => {
     console.log('Listing files in:', uploadDir);
-    fs.readdir(uploadDir, (err, files) => {
-        if (err) {
-            console.error(`Error reading uploads directory: ${err.message}`);
-            return res.status(500).send('Error reading uploads directory: ' + err.message);
-        }
-        console.log('Files found:', files);
-        const fileList = files.map(file => ({ name: file }));
-        res.json(fileList);
-    });
+    try {
+        fs.readdir(uploadDir, (err, files) => {
+            if (err) {
+                console.error(`Error reading uploads directory: ${err.message}`);
+                return res.status(500).json({ error: 'Error reading uploads directory', details: err.message });
+            }
+            console.log('Files found:', files);
+            const fileList = files.map(file => ({ name: file }));
+            res.json(fileList);
+        });
+    } catch (err) {
+        console.error(`Synchronous error in /files: ${err.message}`);
+        res.status(500).json({ error: 'Error accessing uploads directory', details: err.message });
+    }
 });
 
 // Debug endpoint to check disk access
 app.get('/debug', (req, res) => {
-    fs.access(uploadDir, fs.constants.W_OK, (err) => {
-        if (err) {
-            console.error(`Debug: Cannot access uploads: ${err.message}`);
-            return res.status(500).send('Cannot access uploads: ' + err.message);
-        }
+    try {
+        fs.accessSync(uploadDir, fs.constants.R_OK | fs.constants.W_OK);
+        console.log('Debug: Uploads directory is writable');
         res.send('Uploads directory is writable');
-    });
+    } catch (err) {
+        console.error(`Debug: Cannot access uploads: ${err.message}`);
+        res.status(500).send(`Cannot access uploads: ${err.message}`);
+    }
 });
 
 // Start server with enhanced error handling
