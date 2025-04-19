@@ -9,24 +9,25 @@ const port = process.env.PORT || 3000;
 // Define uploads directory (Render uses /app/uploads for persistent disk)
 const uploadDir = process.env.RENDER ? '/app/uploads' : path.join(__dirname, 'Uploads');
 
-// Log environment and check disk access
+// Check and log disk access at startup
+let diskAccessible = false;
 console.log('Environment:', {
     NODE_ENV: process.env.NODE_ENV,
     PORT: process.env.PORT,
     RENDER: process.env.RENDER,
     uploadDir
 });
-
-// Check if uploads directory is accessible
 try {
     fs.accessSync(uploadDir, fs.constants.R_OK | fs.constants.W_OK);
     console.log(`Uploads directory accessible: ${uploadDir}`);
+    diskAccessible = true;
 } catch (err) {
     console.error(`Cannot access uploads directory: ${err.message}`);
     if (err.code === 'ENOENT' && !process.env.RENDER) {
         try {
             fs.mkdirSync(uploadDir, { recursive: true });
             console.log(`Created local uploads directory: ${uploadDir}`);
+            diskAccessible = true;
         } catch (mkdirErr) {
             console.error(`Failed to create local uploads directory: ${mkdirErr.message}`);
         }
@@ -36,6 +37,10 @@ try {
 // Configure multer for file storage
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
+        if (!diskAccessible) {
+            console.error('Upload blocked: Uploads directory not accessible');
+            return cb(new Error('Uploads directory not accessible'));
+        }
         console.log(`Saving file to: ${uploadDir}`);
         cb(null, uploadDir);
     },
@@ -91,6 +96,10 @@ app.post('/upload', upload.single('file'), (req, res) => {
 // List files endpoint
 app.get('/files', (req, res) => {
     console.log('Listing files in:', uploadDir);
+    if (!diskAccessible) {
+        console.error('Cannot list files: Uploads directory not accessible');
+        return res.status(500).json({ error: 'Uploads directory not accessible', details: 'Disk not mounted' });
+    }
     try {
         fs.readdir(uploadDir, (err, files) => {
             if (err) {
@@ -123,6 +132,9 @@ app.get('/debug', (req, res) => {
 try {
     app.listen(port, '0.0.0.0', () => {
         console.log(`Server started successfully on port ${port}`);
+        if (!diskAccessible && process.env.RENDER) {
+            console.error('WARNING: Server started but uploads directory is not accessible. File operations will fail.');
+        }
     }).on('error', (err) => {
         console.error(`Server failed to start: ${err.message}`);
         process.exit(1);
